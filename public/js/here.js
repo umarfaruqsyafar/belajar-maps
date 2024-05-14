@@ -145,110 +145,148 @@ if (navigator.geolocation) {
         let urlParams = new URLSearchParams(window.location.search);
 
         function calculateRouteAtoB(platform) {
-            let router = platform.getRoutingService(),
-                routeRequestParam = {
-                    mode: 'fastest;car',
-                    representation: 'display',
-                    routeattributes: 'summary',
-                    maneuverattributes: 'direction,action',
-                    waypoint0: urlParams.get('from'),
-                    waypoint1: urlParams.get('to')
-                }
+            let router = platform.getRoutingService(null, 8);
+            // routeRequestParam = {
+            //   mode: 'fastest;car',
+            //   representation: 'display',
+            //   routeattributes: 'summary',
+            //   maneuverattributes: 'direction.action',
+            //   waypoint0: urlParams.get('from'),
+            //   waypoint1: urlParams.get('to'),
+            // };
+            let routingParameters = {
+                'routingMode': 'fast',
+                'transportMode': 'pedestrian',
+                'origin': urlParams.get('from'),
+                'destination': urlParams.get('to'),
+                'return': 'polyline',
+            };
 
             router.calculateRoute(
-                routeRequestParam,
-                onSuccess,
-                onError
-            )
+                // routeRequestParam,
+                routingParameters,
+                // onSuccess,
+                onResult,
+                onError,
+            );
         }
 
-        function onSuccess(result) {
-            route = result.response.route[0];
+        let onResult = function (result) {
+            // ensure that at least one route was found
+            if (result.routes.length) {
+                result.routes[0].sections.forEach((section) => {
+                    // Create a linestring to use as a point source for the route line
+                    let linestring = H.geo.LineString.fromFlexiblePolyline(
+                        section.polyline);
 
-            addRouteShapeToMap(route);
-            addSummaryToPanel(route.summary);
-        }
+                    // Create a polyline to display the route:
+                    let routeLine = new H.map.Polyline(linestring, {
+                        style: { strokeColor: 'blue', lineWidth: 3 },
+                    });
+
+                    // Create a marker for the start point:
+                    let startMarker = new H.map.Marker(section.departure.place.location);
+
+                    // Create a marker for the end point:
+                    let endMarker = new H.map.Marker(section.arrival.place.location);
+
+                    // Add the route polyline and the two markers to the map:
+                    map.addObjects([routeLine, startMarker, endMarker]);
+
+                    // Set the map's viewport to make the whole route visible:
+                    map.getViewModel().
+                        setLookAtData({ bounds: routeLine.getBoundingBox() });
+                });
+            }
+        };
+
+        // function onSuccess(result) {
+        //     route = result.response.route[0];
+
+        //     addRouteShapeToMap(route);
+        //     addSummaryToPanel(route.summary);
+        // }
 
         function onError(error) {
             alert('Can\'t reach the remote server' + error);
         }
 
-        function addRouteShapeToMap(route) {
-            let linestring = new H.geo.LineString(),
-                routeShape = route.shape,
-                startPoint, endPoint,
-                polyline, routeline, svgStartMark, iconStart, startMarker, svgEndMark, iconEnd, endMarker;
+        // function addRouteShapeToMap(route) {
+        //     let linestring = new H.geo.LineString(),
+        //         routeShape = route.shape,
+        //         startPoint, endPoint,
+        //         polyline, routeline, svgStartMark, iconStart, startMarker, svgEndMark, iconEnd, endMarker;
 
-            routeShape.forEach(function (point) {
-                let parts = point.split(',');
-                linestring.pushLatLngAlt(parts[0], parts[1]);
-            });
+        //     routeShape.forEach(function (point) {
+        //         let parts = point.split(',');
+        //         linestring.pushLatLngAlt(parts[0], parts[1]);
+        //     });
 
-            startPoint = route.waypoint[0].mappedPosition;
-            endPoint = route.waypoint[1].mappedPosition;
+        //     startPoint = route.waypoint[0].mappedPosition;
+        //     endPoint = route.waypoint[1].mappedPosition;
 
-            polyline = new H.map.Polyline(linestring, {
-                style: {
-                    lineWidth: 5,
-                    strokeColor: 'rgba(0, 128, 255, 0.7)',
-                    lineTailCap: 'arrow-tail',
-                    lineHeadCap: 'arrow-head'
-                }
-            });
+        //     polyline = new H.map.Polyline(linestring, {
+        //         style: {
+        //             lineWidth: 5,
+        //             strokeColor: 'rgba(0, 128, 255, 0.7)',
+        //             lineTailCap: 'arrow-tail',
+        //             lineHeadCap: 'arrow-head'
+        //         }
+        //     });
 
-            routeline = new H.map.Polyline(linestring, {
-                style: {
-                    lineWidth: 5,
-                    fillColor: 'white',
-                    strokeColor: 'rgba(255, 255, 255, 1)',
-                    lineDash: [0, 2],
-                    lineTailCap: 'arrow-tail',
-                    lineHeadCap: 'arrow-head'
-                }
-            });
+        //     routeline = new H.map.Polyline(linestring, {
+        //         style: {
+        //             lineWidth: 5,
+        //             fillColor: 'white',
+        //             strokeColor: 'rgba(255, 255, 255, 1)',
+        //             lineDash: [0, 2],
+        //             lineTailCap: 'arrow-tail',
+        //             lineHeadCap: 'arrow-head'
+        //         }
+        //     });
 
-            svgStartMark = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" id="Capa_1" x="0px" y="0px" viewBox="0 0 52 52" style="enable-background:new 0 0 52 52;" xml:space="preserve" width="512px" height="512px"><g><path d="M38.853,5.324L38.853,5.324c-7.098-7.098-18.607-7.098-25.706,0h0  C6.751,11.72,6.031,23.763,11.459,31L26,52l14.541-21C45.969,23.763,45.249,11.72,38.853,5.324z M26.177,24c-3.314,0-6-2.686-6-6  s2.686-6,6-6s6,2.686,6,6S29.491,24,26.177,24z" data-original="#1081E0" class="active-path" data-old_color="#1081E0" fill="#C12020"/></g> </svg>`;
+        //     svgStartMark = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" id="Capa_1" x="0px" y="0px" viewBox="0 0 52 52" style="enable-background:new 0 0 52 52;" xml:space="preserve" width="512px" height="512px"><g><path d="M38.853,5.324L38.853,5.324c-7.098-7.098-18.607-7.098-25.706,0h0  C6.751,11.72,6.031,23.763,11.459,31L26,52l14.541-21C45.969,23.763,45.249,11.72,38.853,5.324z M26.177,24c-3.314,0-6-2.686-6-6  s2.686-6,6-6s6,2.686,6,6S29.491,24,26.177,24z" data-original="#1081E0" class="active-path" data-old_color="#1081E0" fill="#C12020"/></g> </svg>`;
 
-            iconStart = new H.map.Icon(svgStartMark, {
-                size: { h: 45, w: 45 }
-            });
+        //     iconStart = new H.map.Icon(svgStartMark, {
+        //         size: { h: 45, w: 45 }
+        //     });
 
-            startMarker = new H.map.Marker({
-                lat: startPoint.latitude,
-                lng: startPoint.longitude
-            }, { icon: iconStart });
+        //     startMarker = new H.map.Marker({
+        //         lat: startPoint.latitude,
+        //         lng: startPoint.longitude
+        //     }, { icon: iconStart });
 
-            svgEndMark = `<svg version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 52 52" style="enable-background:new 0 0 52 52;" xml:space="preserve"> <path style="fill:#1081E0;" d="M38.853,5.324L38.853,5.324c-7.098-7.098-18.607-7.098-25.706,0h0 C6.751,11.72,6.031,23.763,11.459,31L26,52l14.541-21C45.969,23.763,45.249,11.72,38.853,5.324z M26.177,24c-3.314,0-6-2.686-6-6 s2.686-6,6-6s6,2.686,6,6S29.491,24,26.177,24z"/></svg>`;
+        //     svgEndMark = `<svg version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 52 52" style="enable-background:new 0 0 52 52;" xml:space="preserve"> <path style="fill:#1081E0;" d="M38.853,5.324L38.853,5.324c-7.098-7.098-18.607-7.098-25.706,0h0 C6.751,11.72,6.031,23.763,11.459,31L26,52l14.541-21C45.969,23.763,45.249,11.72,38.853,5.324z M26.177,24c-3.314,0-6-2.686-6-6 s2.686-6,6-6s6,2.686,6,6S29.491,24,26.177,24z"/></svg>`;
 
-            iconEnd = new H.map.Icon(svgEndMark, {
-                size: { h: 45, w: 45 }
-            });
+        //     iconEnd = new H.map.Icon(svgEndMark, {
+        //         size: { h: 45, w: 45 }
+        //     });
 
-            endMarker = new H.map.Marker({
-                lat: endPoint.latitude,
-                lng: endPoint.longitude
-            }, { icon: iconEnd });
+        //     endMarker = new H.map.Marker({
+        //         lat: endPoint.latitude,
+        //         lng: endPoint.longitude
+        //     }, { icon: iconEnd });
 
 
-            // Add the polyline to the map
-            map.addObjects([polyline, routeline, startMarker, endMarker]);
+        //     // Add the polyline to the map
+        //     map.addObjects([polyline, routeline, startMarker, endMarker]);
 
-            // And zoom to its bounding rectangle
-            map.getViewModel().setLookAtData({
-                bounds: polyline.getBoundingBox()
-            });
-        }
+        //     // And zoom to its bounding rectangle
+        //     map.getViewModel().setLookAtData({
+        //         bounds: polyline.getBoundingBox()
+        //     });
+        // }
 
-        function addSummaryToPanel(summary) {
-            const sumDiv = document.getElementById('summary');
-            const markup = `
-                <ul>
-                    <li>Total Distance: ${summary.distance / 1000}Km</li>
-                    <li>Travel Time: ${summary.travelTime.toMMSS()} (in current traffic)</li>
-                </ul>
-            `;
-            sumDiv.innerHTML = markup;
-        }
+        // function addSummaryToPanel(summary) {
+        //     const sumDiv = document.getElementById('summary');
+        //     const markup = `
+        //         <ul>
+        //             <li>Total Distance: ${summary.distance / 1000}Km</li>
+        //             <li>Travel Time: ${summary.travelTime.toMMSS()} (in current traffic)</li>
+        //         </ul>
+        //     `;
+        //     sumDiv.innerHTML = markup;
+        // }
 
         if (window.action == "direction") {
             calculateRouteAtoB(platform);
